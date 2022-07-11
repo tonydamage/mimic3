@@ -33,7 +33,7 @@ fi
 
 python_files=("${this_dir}/tests"/*.py)
 
-for module_name in 'mimic3_tts' 'mimic3_http' 'opentts_abc'; do
+for module_name in 'mimic3_tts' 'mimic3_http' 'mimic3_phonemize' 'opentts_abc'; do
     python_files+=("${module_name}")
 done
 

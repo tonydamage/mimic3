@@ -143,7 +143,10 @@ def download_voice(
 
 def is_voice_downloaded(voice_location: str) -> bool:
     """True if voice has been downloaded locally"""
-    return voice_location and Path(voice_location).exists()
+    if not voice_location:
+        return False
+
+    return Path(voice_location).exists()
 
 
 # -----------------------------------------------------------------------------
