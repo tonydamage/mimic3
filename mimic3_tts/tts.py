@@ -19,6 +19,8 @@ import itertools
 import logging
 import re
 import typing
+import pyrubberband
+import numpy
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,6 +121,9 @@ class Mimic3Settings:
 
     rate: float = DEFAULT_RATE
     """Voice speaking rate (< 1 is slower, > 1 is faster)"""
+
+    pitch: float = 0.0
+    """Voice pitch change in semitones"""
 
     use_deterministic_compute: bool = False
     """Force onnxruntime to use deterministic compute mode. For fully deterministic synthesis, also set noise_scale and noise_w to 0."""
@@ -354,6 +359,14 @@ class Mimic3TextToSpeechSystem(TextToSpeechSystem):
         self.settings.volume = max(0, min(100, new_volume))
 
     @property
+    def pitch(self) -> float:
+        return self.settings.pitch
+
+    @pitch.setter
+    def pitch(self, new_pitch: float):
+        self.settings.pitch = new_pitch
+
+    @property
     def rate(self) -> float:
         return self.settings.rate
 
@@ -520,6 +533,19 @@ class Mimic3TextToSpeechSystem(TextToSpeechSystem):
             noise_w=settings.noise_w,
             rate=settings.rate,
         )
+
+
+        print(audio.shape);
+
+        if settings.pitch != 0.0:
+            print(numpy.amax(audio), numpy.amin(audio));
+            #_LOGGER.info("pitch=%f, volume=%f, sample_rate = %f", settings.pitch, settings.volume, voice.config.audio.sample_rate)
+            # Change to float [-1.0,1.0]
+            audio = audio.astype(numpy.float32)/32766
+            audio = pyrubberband.pyrb.pitch_shift(audio,sr=voice.config.audio.sample_rate,n_steps=settings.pitch)
+            # Change back to int16
+            audio = (audio * 32766).astype(numpy.int16)
+
 
         audio_bytes = audio.tobytes()
 
