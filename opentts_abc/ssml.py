@@ -64,7 +64,7 @@ class ParsingState(int, enum.Enum):
 
 _DEFAULT_VOLUME: float = 100.0
 _DEFAULT_RATE: float = 1.0
-
+_DEFAULT_PITCH: float = 0.0  #semitone change
 
 @dataclass
 class ProsodyState:
@@ -75,6 +75,8 @@ class ProsodyState:
 
     rate: float = _DEFAULT_RATE
     """Current rate setting (< 1 is slower, > 1 is faster)"""
+
+    pitch: float = _DEFAULT_PITCH
 
 
 # -----------------------------------------------------------------------------
@@ -475,11 +477,16 @@ class SSMLSpeaker:
         if rate_str is not None:
             new_prosody.rate = self._parse_rate(rate_str)
 
+        pitch_str = attrib_no_namespace(elem, "pitch")
+        if pitch_str is not None:
+            new_prosody.pitch = self._parse_pitch(pitch_str)
+
         LOG.debug("prosody: %s", new_prosody)
         self._push_prosody(new_prosody)
 
         self.tts.volume = new_prosody.volume
         self.tts.rate = new_prosody.rate
+        self.tts.pitch = new_prosody.pitch
 
     def _handle_end_prosody(self):
         """Handle </prosody>"""
@@ -490,6 +497,7 @@ class SSMLSpeaker:
 
         self.tts.volume = self._prosody.volume
         self.tts.rate = self._prosody.rate
+        self.tts.pitch = self._prosody.pitch
 
     # -------------------------------------------------------------------------
 
@@ -634,6 +642,57 @@ class SSMLSpeaker:
                 volume = volume_value
 
         return max(0, min(_DEFAULT_VOLUME, volume))
+
+
+    def _parse_pitch(
+        self, pitch_str: str, current_pitch: float = _DEFAULT_PITCH
+    ) -> float:
+        """Parse SSML pitch from <prosody> into semitone offset value"""
+        pitch = current_pitch
+        pitch_str = pitch_str.strip().lower()
+
+        # Look up by name
+        #maybe_volume = self.settings.volume_map.get(volume_str)
+        #if maybe_volume is not None:
+        #    volume = maybe_volume
+        if pitch_str:
+            is_positive_offset = False
+            is_negative_offset = False
+            is_percent = False
+
+            if pitch_str[0] in {"+", "-"}:
+                if pitch_str[0] == "+":
+                    is_positive_offset = True
+                else:
+                    is_negative_offset = True
+
+                pitch_str = pitch_str[1:]
+
+            if pitch_str[-1] == "%":
+                is_percent = True
+                pitch_str = pitch_str[:-1]
+
+
+            pitch_value = float(pitch_str)
+
+            if is_percent:
+                # FIXME: percent with 100% equals 0.0?
+                if is_positive_offset:
+                    pitch += pitch * (pitch / 100.0)
+                elif is_negative_offset:
+                    pitch -= pitch * (pitch / 100.0)
+                else:
+                    # Already on a [0, 100] scale
+                    pitch = pitch_value
+            elif is_positive_offset:
+                pitch += pitch_value
+            elif is_negative_offset:
+                pitch -= pitch_value
+            else:
+                # Absolute value
+                pitch =pitch_value
+
+        return pitch
 
     def _parse_rate(self, rate_str: str) -> float:
         """Parse SSML rate from <prosody> into float"""
